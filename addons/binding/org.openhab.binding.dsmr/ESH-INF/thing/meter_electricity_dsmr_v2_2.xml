@@ -16,7 +16,7 @@
             <channel id="emeter_production_tariff2" typeId="productionTariff2Type"/>
             <channel id="emeter_tariff_indicator" typeId="tariffIndicatorType"/>
             <channel id="emeter_treshold_a" typeId="actualTresholdAType"/>
-            <channel id="meter_valve_switch_position" typeId="switchPositionType"/>
+            <channel id="meter_switch_position" typeId="switchPositionType"/>
             <channel id="emeter_actual_delivery" typeId="actualDeliveryType"/>
         </channels>
         <config-description-ref uri="binding:dsmr:meterdescriptor"/>

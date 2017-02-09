@@ -1,5 +1,6 @@
 package org.openhab.binding.dsmr.handler;
 
+import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.List;
@@ -65,7 +66,7 @@ public class MeterHandler extends BaseThingHandler implements DSMRMeterListener 
                 logger.error("Invalid meterType in configuration", exception);
             }
             try {
-                channel = ((Integer) config.get(KEY_CHANNEL)).intValue();
+                channel = ((BigDecimal) config.get(KEY_CHANNEL)).intValue();
             } catch (Exception exception) {
                 logger.error("Invalid channel in configuration", exception);
             }
