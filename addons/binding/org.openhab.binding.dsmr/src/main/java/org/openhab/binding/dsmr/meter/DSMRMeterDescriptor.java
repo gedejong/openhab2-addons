@@ -24,41 +24,21 @@ public class DSMRMeterDescriptor {
     // M-Bus channel
     private final Integer channel;
 
-    // Meter identification
-    private final String idString;
-
     /**
      *
      * @param meterType
      * @param channel
-     * @param idString
      * @throws IllegalArgumentException if one of the parameters is null
      */
-    public DSMRMeterDescriptor(DSMRMeterType meterType, Integer channel, String idString) {
-        if (meterType == null || channel == null || idString == null) {
-            logger.error("MeterType: {}, channel:{}, idString:{}", meterType, channel, idString);
+    public DSMRMeterDescriptor(DSMRMeterType meterType, Integer channel) {
+        if (meterType == null || channel == null) {
+            logger.error("MeterType: {}, channel:{}, idString:{}", meterType, channel);
 
             throw new IllegalArgumentException("Parameters of DSMRMeterDescription can not be null");
         }
 
         this.meterType = meterType;
         this.channel = channel;
-
-        /*
-         * The implementation needs an identification for every meter (String.length > 0). This identification
-         * is used in the Thing configuration and will make potential problems more obvious because not having
-         * a meter identification is probably caused by a software bug.
-         *
-         * To prevent problems with meters that have a identifier but it is real empty we substitute this
-         * with a meta value UNKNOWN_ID. This will only be used in finding the meter instance
-         * and is saved in the configuration. If the user adds an Item to the particular Channel of this meter
-         * the real value ("" in this case) will be send to the Item.
-         */
-        if (idString.length() == 0) {
-            this.idString = DSMRMeterConstants.UNKNOWN_ID;
-        } else {
-            this.idString = idString;
-        }
     }
 
     /**
@@ -73,13 +53,6 @@ public class DSMRMeterDescriptor {
      */
     public Integer getChannel() {
         return channel;
-    }
-
-    /**
-     * @return the idString
-     */
-    public String getIdString() {
-        return idString;
     }
 
     /**
@@ -98,11 +71,11 @@ public class DSMRMeterDescriptor {
         }
         DSMRMeterDescriptor o = (DSMRMeterDescriptor) other;
 
-        return meterType == o.meterType && channel.equals(o.channel) && idString.equals(o.idString);
+        return meterType == o.meterType && channel.equals(o.channel);
     }
 
     @Override
     public String toString() {
-        return "Meter type: " + meterType + ", channel: " + channel + ", identification: " + idString;
+        return "Meter type: " + meterType + ", channel: " + channel;
     }
 }

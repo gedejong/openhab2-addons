@@ -14,11 +14,8 @@ import java.util.Set;
 
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.openhab.binding.dsmr.DSMRBindingConstants;
-import org.openhab.binding.dsmr.device.cosem.CosemHexString;
 import org.openhab.binding.dsmr.device.cosem.CosemObject;
 import org.openhab.binding.dsmr.device.cosem.CosemObjectType;
-import org.openhab.binding.dsmr.device.cosem.CosemString;
-import org.openhab.binding.dsmr.device.cosem.CosemValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -341,32 +338,13 @@ public enum DSMRMeterType {
 
             // Checking by reference is possible here due to comparing enums
             if (cosemObjectTypeMeterId != CosemObjectType.UNKNOWN && objectType == cosemObjectTypeMeterId) {
-                // We expect here the identification object has 1 CosemString as value (hence index 0)
-                CosemValue<? extends Object> cosemValue = cosemObject.getCosemValue(0);
-                String meterID = null;
-
-                if (cosemValue != null) {
-                    if (cosemValue instanceof CosemString) {
-                        meterID = ((CosemString) cosemValue).getValue();
-                    } else if (cosemValue instanceof CosemHexString) {
-                        meterID = ((CosemHexString) cosemValue).getValue();
-                    }
-                }
-
-                if (meterID != null) {
-                    meterDescriptor = new DSMRMeterDescriptor(this, cosemObject.getObisIdentifier().getGroupB(),
-                            meterID);
-                } else {
-                    // We expect that the Cosem Object type that identifies a meter type has a Cosem String value
-                    logger.warn("Meter identification CosemObject {} is not a CosemString ignore identification");
-                }
+                meterDescriptor = new DSMRMeterDescriptor(this, cosemObject.getObisIdentifier().getGroupB());
             }
         }
         // Meter type is compatible, check if an identification exists
         if (meterDescriptor == null) {
             logger.debug("Meter type {} has no identification", this.toString());
-            meterDescriptor = new DSMRMeterDescriptor(this, DSMRMeterConstants.UNKNOWN_CHANNEL,
-                    DSMRMeterConstants.UNKNOWN_ID);
+            meterDescriptor = new DSMRMeterDescriptor(this, DSMRMeterConstants.UNKNOWN_CHANNEL);
         }
         logger.debug("Meter type is compatible and has the following descriptor {}", meterDescriptor);
 

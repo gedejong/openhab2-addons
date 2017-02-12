@@ -31,9 +31,7 @@ import org.slf4j.LoggerFactory;
 public class MeterHandler extends BaseThingHandler implements DSMRMeterListener {
     public static final Logger logger = LoggerFactory.getLogger(MeterHandler.class);
 
-    private static final String KEY_METERTYPE = "meterType";
     private static final String KEY_CHANNEL = "channel";
-    private static final String KEY_IDSTRING = "idString";
 
     private static final DateFormat FAILURE_FORMAT = new SimpleDateFormat("d MMM yyyy HH:mm:ss");
 
@@ -52,32 +50,26 @@ public class MeterHandler extends BaseThingHandler implements DSMRMeterListener 
 
     @Override
     public void initialize() {
-        logger.debug("Initialize MeterHandler for Thing {}", getThing());
+        logger.debug("Initialize MeterHandler for Thing {}", getThing().getUID());
         Configuration config = getThing().getConfiguration();
 
         DSMRMeterDescriptor meterDescriptor = null;
-        if (config.containsKey(KEY_METERTYPE) && config.containsKey(KEY_CHANNEL) && config.containsKey(KEY_IDSTRING)) {
+        if (config.containsKey(KEY_CHANNEL)) {
             DSMRMeterType meterType = null;
             Integer channel = null;
-            String idString = null;
             try {
-                meterType = DSMRMeterType.valueOf((String) config.get(KEY_METERTYPE));
+                meterType = DSMRMeterType.valueOf(getThing().getThingTypeUID().getId().toUpperCase());
             } catch (Exception exception) {
-                logger.error("Invalid meterType in configuration", exception);
+                logger.error("Invalid meterType", exception);
             }
             try {
                 channel = ((BigDecimal) config.get(KEY_CHANNEL)).intValue();
             } catch (Exception exception) {
                 logger.error("Invalid channel in configuration", exception);
             }
-            try {
-                idString = (String) config.get(KEY_METERTYPE);
-            } catch (Exception exception) {
-                logger.error("Invalid idString in configuration", exception);
-            }
 
-            if (meterType != null && channel != null && idString != null) {
-                meterDescriptor = new DSMRMeterDescriptor(meterType, channel, idString);
+            if (meterType != null && channel != null) {
+                meterDescriptor = new DSMRMeterDescriptor(meterType, channel);
             }
         }
         if (meterDescriptor != null) {

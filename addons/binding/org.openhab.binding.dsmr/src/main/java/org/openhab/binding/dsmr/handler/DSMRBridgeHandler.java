@@ -54,6 +54,7 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
     @Override
     public void initialize() {
         Configuration config = getThing().getConfiguration();
+        logger.debug("Using configuration:{}", config);
         DSMRDeviceConfiguration deviceConfig = config.as(DSMRDeviceConfiguration.class);
 
         for (String key : config.keySet()) {
@@ -66,8 +67,9 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_PENDING, "Serial Port name is not set");
         } else {
             logger.debug("Starting DSMR device");
-            dsmrDevice = new DSMRDevice(deviceConfig, this, discoveryService);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, "Starting bridge");
+
+            dsmrDevice = new DSMRDevice(deviceConfig, this, discoveryService);
             dsmrDevice.startUpDevice();
         }
     }
@@ -137,6 +139,7 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
             DSMRMeter meter = mh.getDSMRMeter();
 
             if (meter != null) {
+                logger.debug("Add DSMR Meter {} to set of supported meters", meter);
                 dsmrDevice.addDSMRMeter(meter);
             } else {
                 logger.warn("Ignoring adding a null meter from Thing {}", childThing);
