@@ -14,7 +14,7 @@
         </description>
 
         <channels>
-            <channel id="meter_equipment_identifier_v2_2" typeId="equipmentIdType"/>
+            <channel id="cmeter_equipment_identifier_v2_2" typeId="equipmentIdType"/>
             <channel id="cmeter_value_v2" typeId="coolingValueType"/>
         </channels>
         <config-description-ref uri="binding:dsmr:meterdescriptor"/>

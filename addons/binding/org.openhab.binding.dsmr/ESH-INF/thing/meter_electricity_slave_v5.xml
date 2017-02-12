@@ -12,7 +12,6 @@
             <channel id="meter_device_type" typeId="deviceType"/>
             <channel id="meter_equipment_identifier" typeId="equipmentIdType"/>
             <channel id="emeter_value" typeId="deliveryType"/>
-            <channel id="emeter_switch_position" typeId="switchPositionType"/>
         </channels>
         <config-description-ref uri="binding:dsmr:meterdescriptor"/>
     </thing-type>

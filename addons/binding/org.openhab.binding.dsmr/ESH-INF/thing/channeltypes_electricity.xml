@@ -120,7 +120,7 @@
     </channel-type>
     <channel-type id="powerFailureLogType">
         <item-type>String</item-type>
-        <label>Power failures log</label>
+        <label>Power failure log</label>
         <description>The power failure log.</description>
         <state readOnly="true"></state>
     </channel-type>

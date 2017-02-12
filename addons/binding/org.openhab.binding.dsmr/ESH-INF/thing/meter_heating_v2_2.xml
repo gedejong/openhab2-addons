@@ -9,7 +9,7 @@
         <description>This is a heating meter that complies to the DSMR V2.2 specification</description>
 
         <channels>
-            <channel id="meter_equipment_identifier_v2_2" typeId="equipmentIdType"/>
+            <channel id="hmeter_equipment_identifier_v2_2" typeId="equipmentIdType"/>
             <channel id="hmeter_value_v2" typeId="heatingValueType"/>
         </channels>
         <config-description-ref uri="binding:dsmr:meterdescriptor"/>
