@@ -52,7 +52,8 @@ dsmr:dsmrBridge:myEmbDSMRDevice [serialPort="/dev/ttyUSB0", serialPortSettings="
 ### Meters
 The information in this paragraph in necessary if you choose to configure the meters manually in a `.things` file.
 
-Supported meters:
+Supported meters:  
+
 | Meter Thing | Thing type ID | M-Bus channel |
 | ----------- | ------------- | ------------- |
 | DSMR V2 / V3 Device | `device_v2_v3` | -1 |
@@ -88,7 +89,7 @@ Supported meters:
 | DSMR V4.x m3 meter (gas or water) | `m3_v4` | *note 1* |
 | DSMR V5 m3 meter (gas or water) | `m3_v5_0` | *note 1* |
 
-*note 1*. The channel of these meters is dependent on the physical installation and corresponds to the M-Bus channel. You can ask your supplier / installer for this information or you can retrieve it from the logfiles (see *Determing M-Bus channel*).
+*note 1*. The channel of these meters is dependent on the physical installation and corresponds to the M-Bus channel. You can ask your supplier / installer for this information or you can retrieve it from the logfiles (see *Determine M-Bus channel*).
 
 #### Configuration
 PaperUI: Not needed. This is done automatically for you
@@ -253,5 +254,16 @@ Number MeterDeliveryTariff0 "Total electricity delivered to the resident during 
 Number MeterDeliveryTariff1 "Total electricity delivered to the resident during high tariff period [%.3f kWh]" {channel="dsmr:device_v5:mysmartmeter:electricityV5:emeter_delivery_tariff2}
 ```
 
-## Determin M-Bus channel
-TODO
+## Determine M-Bus channel
+Since autodetecting meters is always active, you can use the logging to find out a M-Bus channel.  
+Look for the following logfile line:  
+`<Timestamp> [INFO ] [enhab.binding.dsmr.device.DSMRDevice] - Detected the following new meters: [Meter type: M3_V5_0, channel: 1, Meter type: ELECTRICITY_V5, channel: 0]`
+
+Here you find the ThingTypeID (it is stated only in capitals) and the M-Bus channel. The above example would lead to the following Thing definition
+```
+Bridge definition {
+    Things:
+        m3_v5_0 mygasmeter [channel=1]
+        electricity_v5 [channel=0]
+}
+```
