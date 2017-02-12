@@ -69,26 +69,26 @@ Supported meters:
 | ACE4000 GTMM Mk3 Gas meter | `gas_ace4000` | 3 |
 | DSMR V2.1 Gas meter | `gas_v2_1` | 0 |
 | DSMR V2.2 Gas meter | `gas_v2_2` | 0 |
-| DSMR V3.0 Gas meter | `gas_v3_0` | *\*1* |
+| DSMR V3.0 Gas meter | `gas_v3_0` | *note 1* |
 | ACE4000 GTMM Mk3 Cooling meter | `cooling_ace4000` | 6 |
 | DSMR V2.2 Cooling meter | `cooling_v2_2` | 0 |
 | ACE4000 GTMM Mk3 Heating meter | `heating_ace4000` | 4 |
 | DSMR V2.2 Heating meter | `heating_v2_2` | 0 |
 | ACE4000 GTMM Mk3 Water meter | `water_ace4000` | 5 |
 | DSMR V2.2 Water meter | `water_v2_2` | 0 |
-| DSMR V3.0 Water meter | `water_v3_0` | *\*1*
+| DSMR V3.0 Water meter | `water_v3_0` | *note 1* |
 | ACE4000 GTMM Mk3 1st Slave Electricity meter | `slave_electricity1_ace4000` | 1 |
 | ACE4000 GTMM Mk3 2nd Slave Electricity meter | `slave_electricity2_ace4000` | 2 |
-| DSMR V4.x Slave Electricity meter | `slave_electricity_v4` | *\*1* |
-| DSMR V5 Slave Electricity meter | `slave_electricity_v5` | *\*1* |
-| DSMR V3.0 Generic meter | `generic_v3_0` | *\*1* |
-| DSMR V3.0 Giga Joule meter (heating or cooling) | `gj_v3_0` | *\*1* |
-| DSMR V4.x Giga Joule meter (heating or cooling) | `gj_v4` | *\*1* |
-| DSMR V5 Giga Joule meter (heating or cooling) | `gj_v5_0` | *\*1* |
-| DSMR V4.x m3 meter (gas or water) | `m3_v4` | *\*1* |
-| DSMR V5 m3 meter (gas or water) | `m3_v5_0` | *\*1* |
+| DSMR V4.x Slave Electricity meter | `slave_electricity_v4` | *note 1* |
+| DSMR V5 Slave Electricity meter | `slave_electricity_v5` | *note 1* |
+| DSMR V3.0 Generic meter | `generic_v3_0` | *note 1* |
+| DSMR V3.0 Giga Joule meter (heating or cooling) | `gj_v3_0` | *note 1* |
+| DSMR V4.x Giga Joule meter (heating or cooling) | `gj_v4` | *note 1* |
+| DSMR V5 Giga Joule meter (heating or cooling) | `gj_v5_0` | *note 1* |
+| DSMR V4.x m3 meter (gas or water) | `m3_v4` | *note 1* |
+| DSMR V5 m3 meter (gas or water) | `m3_v5_0` | *note 1* |
 
-*\*1* The channel of these meters is dependent on the physical installation and corresponds to the M-Bus channel. You can ask your supplier / installer for this information or you can retrieve it from the logfiles (see *Determing channel*).
+*note 1*. The channel of these meters is dependent on the physical installation and corresponds to the M-Bus channel. You can ask your supplier / installer for this information or you can retrieve it from the logfiles (see *Determing M-Bus channel*).
 
 #### Configuration
 PaperUI: Not needed. This is done automatically for you
@@ -231,7 +231,6 @@ Channel identifier: `dsmr:<ThingTypeID>:<bridge id>:<id>:<channel type id>`
 The following configuration must to be added to a item configuration file. E.g. `things/dsmr.items`
 ```
 ItemType <name> "<description>" (<Group>) {channel="<Channel identifer>"}
-}
 ```
 **Examples**
 ```
@@ -253,3 +252,6 @@ String P1Version "P1 Version output" {channel="dsmr:device_v5:mysmartmeter:dsmrV
 Number MeterDeliveryTariff0 "Total electricity delivered to the resident during low tariff period [%.3f kWh]" {channel="dsmr:device_v5:mysmartmeter:electricityV5:emeter_delivery_tariff1}
 Number MeterDeliveryTariff1 "Total electricity delivered to the resident during high tariff period [%.3f kWh]" {channel="dsmr:device_v5:mysmartmeter:electricityV5:emeter_delivery_tariff2}
 ```
+
+## Determin M-Bus channel
+TODO
