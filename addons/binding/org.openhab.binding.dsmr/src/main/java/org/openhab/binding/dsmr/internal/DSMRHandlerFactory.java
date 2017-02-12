@@ -51,11 +51,18 @@ public class DSMRHandlerFactory extends BaseThingHandlerFactory {
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {
 
         if (thingTypeUID.equals(DSMRBindingConstants.THING_TYPE_DSMR_BRIDGE)) {
-            logger.debug("Supports {}", thingTypeUID);
+            logger.debug("DSMR Bridge Thing {} supported", thingTypeUID);
             return true;
         } else {
-            logger.debug("Doesn't support  {}", thingTypeUID);
-            return DSMRMeterType.METER_THING_TYPES.contains(thingTypeUID);
+            boolean thingTypeUIDIsMeter = DSMRMeterType.METER_THING_TYPES.contains(thingTypeUID);
+            if (logger.isDebugEnabled()) {
+                if (thingTypeUIDIsMeter) {
+                    logger.debug("{} is a supported DSMR Meter thing", thingTypeUID);
+                } else {
+                    logger.debug("{} is not a DSMR Meter thing or not a supported DSMR Meter thing", thingTypeUID);
+                }
+            }
+            return thingTypeUIDIsMeter;
         }
     }
 
@@ -106,5 +113,4 @@ public class DSMRHandlerFactory extends BaseThingHandlerFactory {
             }
         }
     }
-
 }

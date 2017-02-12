@@ -78,15 +78,13 @@ public class DSMRDiscoveryService extends AbstractDiscoveryService implements DS
         ThingTypeUID thingTypeUID = meterType.getThingTypeUID();
         String thingId = "dsmr:" + meterType.name().toLowerCase() + ":"
                 + (meterDescriptor.getChannel() == DSMRMeterConstants.UNKNOWN_CHANNEL ? "default"
-                        : meterDescriptor.getChannel())
-                + "_" + meterDescriptor.getIdString();
+                        : meterDescriptor.getChannel());
         ThingUID thingUID = new ThingUID(thingId);
 
         // Construct the configuration for this meter
         Map<String, Object> properties = new HashMap<String, Object>();
         properties.put("meterType", meterType.name());
         properties.put("channel", meterDescriptor.getChannel());
-        properties.put("idString", meterDescriptor.getIdString());
 
         DiscoveryResult discoveryResult = DiscoveryResultBuilder.create(thingUID).withThingType(thingTypeUID)
                 .withBridge(dsmrBridgeUID).withProperties(properties).withLabel(meterType.meterKind.toString()).build();
