@@ -55,10 +55,10 @@ public class P1TelegramParser {
     };
 
     /* internal state variables */
-    private String obisId = "";
-    private String cosemObjectValuesString = "";
+    private StringBuffer obisId = new StringBuffer();
+    private StringBuffer cosemObjectValuesString = new StringBuffer();
     private CRC16 crc;
-    private String crcValue = "";
+    private StringBuffer crcValue = new StringBuffer();
     private State state = State.WAIT_FOR_START;
     private boolean lenientMode = false;
     private TelegramState telegramState;
@@ -194,7 +194,7 @@ public class P1TelegramParser {
                         // Only perform CRC check if telegram is still ok
                         if (telegramState == TelegramState.OK && crcValue.length() > 0) {
                             if (Pattern.matches(CRC_PATTERN, crcValue)) {
-                                int crcP1Telegram = Integer.parseInt(crcValue, 16);
+                                int crcP1Telegram = Integer.parseInt(crcValue.toString(), 16);
                                 int calculatedCRC = crc.getCurrentCRCCode();
 
                                 if (logger.isDebugEnabled()) {
@@ -273,22 +273,22 @@ public class P1TelegramParser {
                 crc.processByte((byte) c);
                 break;
             case DATA_OBIS_ID:
-                obisId += c;
+                obisId.append(c);
                 crc.processByte((byte) c);
                 break;
             case DATA_OBIS_VALUE:
-                cosemObjectValuesString += c;
+                cosemObjectValuesString.append(c);
                 crc.processByte((byte) c);
                 break;
             case DATA_OBIS_VALUE_END:
-                cosemObjectValuesString += c;
+                cosemObjectValuesString.append(c);
                 crc.processByte((byte) c);
                 break;
             case CRC_VALUE:
                 if (c == '!') {
                     crc.processByte((byte) c);
                 } else {
-                    crcValue += c;
+                    crcValue.append(c);
                 }
                 // CRC data is not part of received data
                 break;
@@ -301,11 +301,13 @@ public class P1TelegramParser {
      * Clears all internal state
      */
     private void clearInternalData() {
-        obisId = "";
-        cosemObjectValuesString = "";
+        logger.debug("obisId: {}, cosumObjectValues: {}, crc: {}", obisId.length(), cosemObjectValuesString.length(),
+                crcValue.length());
+        obisId.setLength(0);
+        cosemObjectValuesString.setLength(0);
         cosemObjects.clear();
         crc.initialize();
-        crcValue = "";
+        crcValue.setLength(0);
     }
 
     /**
@@ -315,15 +317,16 @@ public class P1TelegramParser {
      * - current OBIS data object
      */
     private void clearObisData() {
-        obisId = "";
-        cosemObjectValuesString = "";
+        logger.debug("obisId: {}, cosumObjectValues: {}", obisId.length(), cosemObjectValuesString.length());
+        obisId.setLength(0);
+        cosemObjectValuesString.setLength(0);
     }
 
     /**
      * Store the current CosemObject in the list of received cosem Objects
      */
     private void storeCurrentCosemObject() {
-        CosemObject cosemObject = factory.getCosemObject(obisId, cosemObjectValuesString);
+        CosemObject cosemObject = factory.getCosemObject(obisId.toString(), cosemObjectValuesString.toString());
 
         logger.debug("Storing {}", cosemObject);
 
