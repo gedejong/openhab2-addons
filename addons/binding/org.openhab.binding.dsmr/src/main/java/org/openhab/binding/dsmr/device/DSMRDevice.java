@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DeviceState;
 import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DeviceStateDetail;
+import org.openhab.binding.dsmr.device.DSMRPort.DeviceStateDetailListener;
 import org.openhab.binding.dsmr.device.cosem.CosemObject;
 import org.openhab.binding.dsmr.device.discovery.DSMRMeterDetector;
 import org.openhab.binding.dsmr.device.discovery.DSMRMeterDiscoveryListener;
@@ -37,7 +38,7 @@ import org.slf4j.LoggerFactory;
  * @author M. Volaart
  * @since 2.0.0
  */
-public class DSMRDevice implements Runnable, P1TelegramListener {
+public class DSMRDevice implements Runnable, P1TelegramListener, DeviceStateDetailListener {
     // Logger
     private final Logger logger = LoggerFactory.getLogger(DSMRDevice.class);
 
@@ -162,6 +163,8 @@ public class DSMRDevice implements Runnable, P1TelegramListener {
                                 DSMRDeviceConstants.SERIAL_PORT_READ_TIMEOUT,
                                 DSMRPortSettings.getPortSettingsFromString(deviceConfiguration.serialPortSettings));
 
+                        dsmrPort.subscribe(this);
+
                         stateDetail = dsmrPort.open();
                         // Open the DSMR Port
                         if (stateDetail == DeviceStateDetail.PORT_OK) {
@@ -184,17 +187,10 @@ public class DSMRDevice implements Runnable, P1TelegramListener {
                             dsmrPort.switchPortSpeed();
 
                             setDSMRDeviceState(DeviceState.STARTING, DeviceStateDetail.PORT_DETECTING_SPEED);
-                        } else {
-                            dsmrPort.read();
                         }
                         break;
                     case ONLINE:
                         // Read CosemObjects
-                        stateDetail = dsmrPort.read();
-                        if (stateDetail != DeviceStateDetail.PORT_READ_OK) {
-                            setDSMRDeviceState(DeviceState.OFFLINE, stateDetail);
-                        }
-
                         break;
                     case OFFLINE:
                         long recoveryPeriod = System.currentTimeMillis() - deviceState.timestamp;
@@ -203,13 +199,6 @@ public class DSMRDevice implements Runnable, P1TelegramListener {
                             logger.info("Tried to recover for {} ms, entering INITIALIZING", recoveryPeriod);
 
                             setDSMRDeviceState(DeviceState.INITIALIZING, DeviceStateDetail.RECOVER_COMMUNICATION);
-                        } else {
-                            stateDetail = dsmrPort.read();
-                            if (stateDetail != DeviceStateDetail.PORT_READ_OK) {
-                                // Update the offline state
-                                setDSMRDeviceState(DeviceState.OFFLINE, stateDetail);
-                            }
-                            // Device state will be changed to online when receiving Cosem Objects again
                         }
                         break;
                     case CONFIGURATION_PROBLEM:
@@ -410,5 +399,12 @@ public class DSMRDevice implements Runnable, P1TelegramListener {
      */
     public void removeDSMRMeter(DSMRMeter dsmrMeter) {
         availableMeters.remove(dsmrMeter);
+    }
+
+    @Override
+    public void deviceStateDetailUpdate(DeviceStateDetail stateDetail) {
+        if (stateDetail != DeviceStateDetail.PORT_READ_OK) {
+            setDSMRDeviceState(DeviceState.OFFLINE, stateDetail);
+        }
     }
 }
