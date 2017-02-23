@@ -9,8 +9,8 @@ import java.util.concurrent.TimeUnit;
  * @since 2.0.0
  */
 public class DSMRMeterConstants {
-    // Timeout for receiving meter values
-    public static final int METER_VALUES_RECEIVED_TIMEOUT = (int) TimeUnit.MINUTES.toMillis(1);
+    // Timeout for receiving meter values (in seconds)
+    public static final int METER_VALUES_RECEIVED_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(60);
     // period between evaluations of meter values are received
     public static final int METER_VALUES_TIMER_PERIOD = (int) TimeUnit.SECONDS.toMillis(10);
     // unknown M-Bus channel

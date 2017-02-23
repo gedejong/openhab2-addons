@@ -1,4 +1,4 @@
-package org.openhab.binding.dsmr.device.discovery;
+package org.openhab.binding.dsmr.discovery;
 
 import org.openhab.binding.dsmr.meter.DSMRMeterDescriptor;
 

@@ -10,10 +10,9 @@ package org.openhab.binding.dsmr.device;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.util.Enumeration;
-import java.util.Properties;
+import java.util.TooManyListenersException;
 
-import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DeviceStateDetail;
+import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DSMRPortEvent;
 import org.openhab.binding.dsmr.device.p1telegram.P1TelegramParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +22,8 @@ import gnu.io.CommPortIdentifier;
 import gnu.io.NoSuchPortException;
 import gnu.io.PortInUseException;
 import gnu.io.SerialPort;
+import gnu.io.SerialPortEvent;
+import gnu.io.SerialPortEventListener;
 import gnu.io.UnsupportedCommOperationException;
 
 /**
@@ -65,13 +66,12 @@ import gnu.io.UnsupportedCommOperationException;
  * @author M. Volaart
  * @since 2.0.0
  */
-public class DSMRPort {
+public class DSMRPort implements SerialPortEventListener {
     /* logger */
     private static final Logger logger = LoggerFactory.getLogger(DSMRPort.class);
 
     /* private object variables */
     private final String portName;
-    private final int readTimeoutMSec;
 
     /* serial port resources */
     private SerialPort serialPort;
@@ -81,10 +81,23 @@ public class DSMRPort {
     /* state variables */
     private DSMRPortSettings portSettings;
     private DSMRPortSettings fixedPortSettings; // Used if DSMR binding has a static port configuration
-    private boolean isOpen = false;
+    private boolean lenientMode = false;
+
+    private class DSMRPortStatus {
+        private boolean isOpen = false;
+        private boolean bi = false;
+        private boolean oe = false;
+        private boolean fe = false;
+        private boolean pe = false;
+    }
+
+    private DSMRPortStatus portStatus;
 
     /* helpers */
     private P1TelegramParser p1Parser;
+
+    /* listeners */
+    private DSMRPortEventListener dsmrPortListener;
 
     /*
      * The portLock is used for the shared data used when opening and closing
@@ -102,8 +115,6 @@ public class DSMRPort {
      *            Device identifier of the post (e.g. /dev/ttyUSB0)
      * @param p1Parser
      *            {@link P1TelegramParser}
-     * @param readTimeoutMSec
-     *            communication timeout in milliseconds
      * @param fixedPortSettings
      *            {@link PortSettings} object containing fixed port settings. This parameter
      *            may be null. The binding will then use specification default settings
@@ -112,160 +123,24 @@ public class DSMRPort {
      *            If the parameter is set, the binding will ONLY use the specified settings
      *            auto detect functionality will only use the specified settings.
      */
-    public DSMRPort(String portName, P1TelegramParser p1Parser, int readTimeoutMSec,
-            DSMRPortSettings fixedPortSettings) {
+    public DSMRPort(String portName, P1TelegramParser p1Parser, DSMRPortEventListener dsmrPortListener,
+            DSMRPortSettings fixedPortSettings, boolean lenientMode) {
         this.portName = portName;
-        this.readTimeoutMSec = readTimeoutMSec;
         this.p1Parser = p1Parser;
         this.fixedPortSettings = fixedPortSettings;
+        this.lenientMode = lenientMode;
+        this.dsmrPortListener = dsmrPortListener;
 
+        portStatus = new DSMRPortStatus();
+
+        /*
+         * Februari 2017
+         * Due to the Dutch Smart Meter program where every residence is provided
+         * a smart for free and the meters are DSMR V4 or higher
+         * we assume the majority of meters communicate with HIGH_SPEED_SETTINGS
+         * For older meters this means initializing is taking probably 1 minute
+         */
         portSettings = DSMRPortSettings.HIGH_SPEED_SETTINGS;
-    }
-
-    /**
-     * Closes the DSMRPort and release OS resources
-     */
-    public void close() {
-        synchronized (portLock) {
-            logger.info("Closing DSMR port");
-
-            // Close resources
-            if (bis != null) {
-                try {
-                    bis.close();
-                } catch (IOException ioe) {
-                    logger.debug("Failed to close reader", ioe);
-                }
-            }
-            if (serialPort != null) {
-                serialPort.close();
-            }
-
-            // Release resources
-            bis = null;
-            serialPort = null;
-
-            isOpen = false;
-        }
-    }
-
-    /**
-     * Start reading from the DSMR port.
-     *
-     * @return {@link DeviceStateDetail} containing the details about the DeviceState
-     */
-    public DeviceStateDetail read() {
-        // open port if it is not open
-        if (!isOpen) {
-            logger.warn("DSMRPort is not open, no values will be read");
-
-            close();
-
-            return DeviceStateDetail.PORT_NOT_OPEN;
-        }
-
-        try {
-            // Read without block
-            int bytesAvailable = bis.available();
-            while (bytesAvailable > 0) {
-                int bytesRead = bis.read(buffer, 0, Math.min(bytesAvailable, buffer.length));
-
-                if (bytesRead > 0) {
-                    p1Parser.parseData(buffer, 0, bytesRead);
-                } else {
-                    logger.debug("Expected bytes {} to read, but {} bytes were read", bytesAvailable, bytesRead);
-                }
-                bytesAvailable = bis.available();
-            }
-            return DeviceStateDetail.PORT_READ_OK;
-        } catch (IOException ioe) {
-            /*
-             * Read is interrupted. This can be due to a broken connection or
-             * closing the port
-             */
-            if (!isOpen) {
-                // Closing on purpose
-                logger.info("Read aborted: DSMRPort is closed");
-
-                return DeviceStateDetail.PORT_NOT_OPEN;
-            } else {
-                // Closing due to broken connection
-
-                logger.warn("DSMRPort is not available anymore, closing port");
-                logger.debug("Caused by:", ioe);
-
-                close();
-
-                return DeviceStateDetail.PORT_READ_ERROR;
-            }
-        } catch (NullPointerException npe) {
-            if (!isOpen) {
-                // Port was closed
-                logger.info("Read aborted: DSMRPort is closed");
-            } else {
-                logger.error("Unexpected problem occured", npe);
-
-                close();
-            }
-            return DeviceStateDetail.PORT_NOT_OPEN;
-        }
-    }
-
-    /**
-     * Switch the Serial Port speed (LOW --> HIGH and vice versa).
-     */
-    void switchPortSpeed() {
-        if (fixedPortSettings == null) {
-            logger.debug("No fixed port setting (autodetect ENABLED), switch between specification standard settings");
-
-            // Checking instance reference here since these are final
-            if (portSettings == DSMRPortSettings.HIGH_SPEED_SETTINGS) {
-                portSettings = DSMRPortSettings.LOW_SPEED_SETTINGS;
-            } else {
-                portSettings = DSMRPortSettings.HIGH_SPEED_SETTINGS;
-            }
-            logger.debug("Switched port settings to: {}", portSettings);
-        } else {
-            portSettings = fixedPortSettings;
-            logger.info("Fixed port settings configured (autodetect DISABLED): {}", portSettings);
-        }
-    }
-
-    /**
-     * Checks if the given port name is autodetected by gnu.io or already listed
-     * in the system property gnu.io.rxtx.SerialPorts
-     *
-     * @param portName String containing the port name to lookup
-     * @return true if port exists, false otherwise
-     */
-    private boolean portExists(String portName) {
-        @SuppressWarnings("unchecked")
-        Enumeration<CommPortIdentifier> portEnum = CommPortIdentifier.getPortIdentifiers();
-
-        boolean portExists = false;
-
-        logger.debug("Searching autodetected ports for: {}", portName);
-        while (portEnum.hasMoreElements()) {
-            CommPortIdentifier portIdentifier = portEnum.nextElement();
-            if (portIdentifier.getPortType() == CommPortIdentifier.PORT_SERIAL) {
-                logger.debug("Found serial port: {}", portIdentifier.getName());
-                if (portIdentifier.getName().equals(portName)) {
-                    portExists = true;
-                }
-            }
-        }
-        if (!portExists) {
-            Properties properties = System.getProperties();
-            String currentPorts = properties.getProperty("gnu.io.rxtx.SerialPorts", "");
-            if (currentPorts.indexOf(portName) >= 0) {
-                logger.debug("{} is listed in system property gnu.io.rxtx.SerialPorts", portName);
-
-                portExists = true;
-            } else {
-                logger.debug("{} is not listed in system property gnu.io.rxtx.SerialPorts", portName);
-            }
-        }
-        return portExists;
     }
 
     /**
@@ -284,31 +159,22 @@ public class DSMRPort {
      *
      * @return {@link DeviceStateDetail} containing the details about the DeviceState
      */
-    public DeviceStateDetail open() {
+    public void open() {
         synchronized (portLock) {
             // Sanity check
-            if (isOpen) {
+            if (portStatus.isOpen) {
                 logger.debug("Serial Port is already open, keep current port instance");
 
-                return DeviceStateDetail.PORT_OK;
+                dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.OPENED);
             }
-
             try {
-                // GNU.io autodetects standard serial port names
-                // Add non standard port names if not exists (fixes part of #4175)
-                if (!portExists(portName)) {
-                    logger.warn("Port {} does not exists according to the system, we will still try to open it",
-                            portName);
-                }
+                logger.debug("Opening port {}", portName);
+
                 // Opening Operating System Serial Port
-                logger.debug("Creating CommPortIdentifier");
                 CommPortIdentifier portIdentifier = CommPortIdentifier.getPortIdentifier(portName);
-                logger.debug("Opening CommPortIdentifier");
-                CommPort commPort = portIdentifier.open("org.openhab.binding.dsmr", readTimeoutMSec);
-                logger.debug("Configure serial port");
+                CommPort commPort = portIdentifier.open("org.openhab.binding.dsmr",
+                        DSMRDeviceConstants.SERIAL_PORT_READ_TIMEOUT);
                 serialPort = (SerialPort) commPort;
-                serialPort.enableReceiveThreshold(1);
-                serialPort.enableReceiveTimeout(readTimeoutMSec);
 
                 // Configure Serial Port based on specified port speed
                 logger.debug("Configure serial port parameters: {}", portSettings);
@@ -317,45 +183,291 @@ public class DSMRPort {
                     serialPort.setSerialPortParams(portSettings.getBaudrate(), portSettings.getDataBits(),
                             portSettings.getStopbits(), portSettings.getParity());
 
-                    /* special settings for low speed port (checking reference here) */
+                    /*
+                     * special settings for low speed port (checking reference here)
+                     *
+                     * I don't know why this is necessary (these lines are not connected)
+                     */
                     if (portSettings == DSMRPortSettings.LOW_SPEED_SETTINGS) {
                         serialPort.setDTR(false);
                         serialPort.setRTS(true);
                     }
+
+                    // SerialPort is ready, open the reader
+                    logger.info("SerialPort opened successful");
+                    try {
+                        bis = new BufferedInputStream(serialPort.getInputStream());
+                    } catch (IOException ioe) {
+                        logger.error("Failed to get inputstream for serialPort. Closing port", ioe);
+
+                        dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.ERROR);
+                    }
+                    logger.info("DSMR Port opened successful");
+                    portStatus.isOpen = true;
+
+                    try {
+                        serialPort.addEventListener(this);
+                    } catch (TooManyListenersException tmle) {
+                        logger.error("DSMR binding will not be operational.", tmle);
+                    }
+
+                    /*
+                     * Let the listener known the port is opened
+                     * before we start listening for serial port events
+                     */
+                    dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.OPENED);
+
+                    /*
+                     * Start listening for events
+                     */
+                    serialPort.notifyOnDataAvailable(true);
+                    serialPort.notifyOnBreakInterrupt(true);
+                    serialPort.notifyOnFramingError(true);
+                    serialPort.notifyOnOverrunError(true);
+                    serialPort.notifyOnParityError(true);
                 } else {
                     logger.error("Invalid port parameters, closing port:{}", portSettings);
 
-                    return DeviceStateDetail.PORT_CONFIGURATION_ERROR;
+                    dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.CONFIGURATION_ERROR);
                 }
             } catch (NoSuchPortException nspe) {
                 logger.error("Port {} does not exists", portName, nspe);
 
-                return DeviceStateDetail.PORT_CONFIGURATION_NO_PORT;
+                dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.DONT_EXISTS);
             } catch (PortInUseException piue) {
                 logger.error("Port already in use: {}", portName, piue);
 
-                return DeviceStateDetail.PORT_IN_USE;
+                dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.IN_USE);
             } catch (UnsupportedCommOperationException ucoe) {
                 logger.error(
                         "Port does not support requested port settings " + "(invalid dsmr:portsettings parameter?): {}",
                         portName, ucoe);
 
-                return DeviceStateDetail.PORT_NOT_COMPATIBLE;
+                dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.NOT_COMPATIBLE);
+            }
+        }
+    }
+
+    /**
+     * Closes the DSMRPort and release OS resources
+     *
+     * The listener will be notified of the closed event. This event is sent while holding
+     * the portLock ensuring correct order of handling events
+     */
+    public void close() {
+        synchronized (portLock) {
+            logger.info("Closing DSMR port");
+
+            // Stop listening for serial port events
+            if (serialPort != null) {
+                serialPort.removeEventListener();
             }
 
-            // SerialPort is ready, open the reader
-            logger.info("SerialPort opened successful");
-            try {
-                bis = new BufferedInputStream(serialPort.getInputStream());
-            } catch (IOException ioe) {
-                logger.error("Failed to get inputstream for serialPort. Closing port", ioe);
-
-                return DeviceStateDetail.PORT_ERROR;
+            // Close resources
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException ioe) {
+                    logger.debug("Failed to close reader", ioe);
+                }
             }
-            logger.info("DSMR Port opened successful");
-            isOpen = true;
+            if (serialPort != null) {
+                serialPort.close();
+            }
 
-            return DeviceStateDetail.PORT_OK;
+            // Release resources
+            bis = null;
+            serialPort = null;
+
+            portStatus.isOpen = false;
+
+            dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.CLOSED);
+        }
+    }
+
+    /**
+     * Start reading from the DSMR port.
+     *
+     * @return {@link DeviceStateDetail} containing the details about the DeviceState
+     */
+    private DSMRPortEvent read() {
+        // open port if it is not open
+        if (!portStatus.isOpen) {
+            logger.warn("DSMRPort is not open, no values will be read");
+
+            // Close port again (just make sure)
+            close();
+
+            return DSMRPortEvent.CLOSED;
+        }
+
+        try {
+            // Read without block
+            int bytesAvailable = bis.available();
+            while (bytesAvailable > 0) {
+                int bytesRead = bis.read(buffer, 0, Math.min(bytesAvailable, buffer.length));
+
+                if (bytesRead > 0) {
+                    p1Parser.parseData(buffer, 0, bytesRead);
+                } else {
+                    logger.debug("Expected bytes {} to read, but {} bytes were read", bytesAvailable, bytesRead);
+                }
+                bytesAvailable = bis.available();
+            }
+            return DSMRPortEvent.READ_OK;
+        } catch (IOException ioe) {
+            /*
+             * Read is interrupted. This can be due to a broken connection or
+             * closing the port
+             */
+            if (!portStatus.isOpen) {
+                // Closing on purpose
+                logger.info("Read aborted: DSMRPort is closed");
+
+                return DSMRPortEvent.CLOSED;
+            } else {
+                // Closing due to broken connection
+
+                logger.warn("DSMRPort is not available anymore, closing port");
+                logger.debug("Caused by:", ioe);
+
+                close();
+
+                return DSMRPortEvent.READ_ERROR;
+            }
+        } catch (NullPointerException npe) {
+            if (!portStatus.isOpen) {
+                // Port was closed
+                logger.info("Read aborted: DSMRPort is closed");
+            } else {
+                logger.error("Unexpected problem occured, closing DMSR Port", npe);
+
+                close();
+            }
+            return DSMRPortEvent.CLOSED;
+        }
+    }
+
+    /**
+     * Switch the Serial Port speed (LOW --> HIGH and vice versa).
+     */
+    public void switchPortSpeed() {
+        if (fixedPortSettings == null) {
+            logger.debug("No fixed port setting (autodetect ENABLED), switch between specification standard settings");
+
+            // Checking instance reference here since these are final
+            if (portSettings == DSMRPortSettings.HIGH_SPEED_SETTINGS) {
+                portSettings = DSMRPortSettings.LOW_SPEED_SETTINGS;
+            } else {
+                portSettings = DSMRPortSettings.HIGH_SPEED_SETTINGS;
+            }
+            logger.debug("Switched port settings to: {}", portSettings);
+        } else {
+            portSettings = fixedPortSettings;
+            logger.info("Fixed port settings configured (autodetect DISABLED): {}", portSettings);
+        }
+    }
+
+    @Override
+    public void serialEvent(SerialPortEvent seEvent) {
+        switch (seEvent.getEventType()) {
+            case SerialPortEvent.DATA_AVAILABLE:
+                if (seEvent.getNewValue()) {
+                    /* data is available, clear error flags */
+                    portStatus.bi = false;
+                    portStatus.oe = false;
+                    portStatus.fe = false;
+                    portStatus.pe = false;
+
+                    DSMRPortEvent portState = read();
+                    logger.trace("Port state after read: {}", portState);
+                    dsmrPortListener.handleDSMRPortEvent(portState);
+                }
+                break;
+            case SerialPortEvent.BI:
+                if (seEvent.getNewValue()) {
+                    if (!portStatus.bi) {
+                        logger.info("Serial Communication is broken");
+                        portStatus.bi = true;
+                        dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.LINE_BROKEN);
+                    } // Don't notify again
+                } else {
+                    portStatus.bi = false;
+                    logger.debug("BI is recovered");
+                }
+                break;
+            case SerialPortEvent.FE:
+                if (seEvent.getNewValue()) {
+                    if (!portStatus.fe) {
+                        portStatus.fe = true;
+
+                        if (portStatus.pe) {
+                            // Both a frame and parity error --> possible wrong baud rate
+                            logger.debug("Experienced both parity and frame error caused possibly by a wrong baudrate");
+
+                            p1Parser.abortTelegram();
+                            dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.WRONG_BAUDRATE);
+                        } else {
+                            // Handle frame error
+                            if (lenientMode) {
+                                logger.debug("Experienced frame error");
+                            } else {
+                                logger.warn("Experienced frame error");
+                                p1Parser.abortTelegram();
+                                dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.READ_ERROR);
+                            }
+                        }
+                    } // Don't notify again
+                } else {
+                    portStatus.fe = false;
+                    logger.debug("FE is recovered");
+                }
+                break;
+            case SerialPortEvent.OE:
+                if (seEvent.getNewValue()) {
+                    if (!portStatus.oe) {
+                        portStatus.oe = true;
+
+                        if (lenientMode) {
+                            logger.debug("Experienced overrun error");
+                        } else {
+                            logger.warn("Experienced overrun error");
+                            p1Parser.abortTelegram();
+                            dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.READ_ERROR);
+                        }
+                    } // Don't notify again
+                } else {
+                    portStatus.oe = false;
+                    logger.debug("OE is recovered");
+                }
+                break;
+            case SerialPortEvent.PE:
+                if (seEvent.getNewValue()) {
+                    if (!portStatus.pe) {
+                        portStatus.pe = true;
+                        if (portStatus.fe) {
+                            // Both a frame and parity error --> possible wrong baud rate
+                            logger.debug("Experienced both parity and frame error caused possibly by a wrong baudrate");
+
+                            p1Parser.abortTelegram();
+                            dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.WRONG_BAUDRATE);
+                        } else {
+                            // Handle parity error
+                            if (lenientMode) {
+                                logger.debug("Experienced parity error");
+                            } else {
+                                logger.warn("Experienced parity error");
+                                p1Parser.abortTelegram();
+                                dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.READ_ERROR);
+                            }
+                        }
+                    } // Don't nofity again
+                } else {
+                    portStatus.pe = false;
+                    logger.debug("PE is recovered");
+                }
+                break;
+            default: /* do nothing */
         }
     }
 }

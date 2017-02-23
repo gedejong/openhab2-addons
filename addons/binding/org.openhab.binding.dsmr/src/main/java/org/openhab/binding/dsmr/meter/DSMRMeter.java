@@ -14,7 +14,7 @@ import java.util.List;
 import org.openhab.binding.dsmr.device.cosem.CosemObject;
 import org.openhab.binding.dsmr.device.cosem.CosemObjectType;
 import org.openhab.binding.dsmr.device.cosem.OBISIdentifier;
-import org.openhab.binding.dsmr.device.discovery.DSMRMeterDetector;
+import org.openhab.binding.dsmr.discovery.DSMRMeterDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,10 +91,10 @@ public class DSMRMeter {
     private List<CosemObject> filterMeterValues(List<CosemObject> cosemObjects) {
         List<CosemObject> filteredList = new LinkedList<>();
 
-        logger.debug("supported identifiers: {}, searching for objects {}", supportedIdentifiers, cosemObjects);
+        logger.trace("supported identifiers: {}, searching for objects {}", supportedIdentifiers, cosemObjects);
         for (CosemObject cosemObject : cosemObjects) {
             if (supportedIdentifiers.contains(cosemObject.getObisIdentifier().getReducedOBISIdentifier())) {
-                logger.debug("Added supported cosemObject {}", cosemObject);
+                logger.trace("Added supported cosemObject {}", cosemObject);
                 filteredList.add(cosemObject);
             }
         }
@@ -114,7 +114,7 @@ public class DSMRMeter {
         List<CosemObject> filteredValues = filterMeterValues(cosemObjects);
 
         for (CosemObject newValue : filteredValues) {
-            logger.debug("Send new meter value {}", newValue);
+            logger.trace("Send new meter value {}", newValue);
             meterListener.meterValueReceived(newValue);
         }
         return filteredValues;

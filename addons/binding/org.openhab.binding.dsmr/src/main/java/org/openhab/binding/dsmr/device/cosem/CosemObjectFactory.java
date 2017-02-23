@@ -86,7 +86,7 @@ public class CosemObjectFactory {
             return null;
         }
 
-        logger.debug("Received obisIdString {}, obisId: {}, values: {}", obisIdString, obisId, cosemStringValues);
+        logger.trace("Received obisIdString {}, obisId: {}, values: {}", obisIdString, obisId, cosemStringValues);
 
         CosemObject cosemObject = null;
 
@@ -130,7 +130,7 @@ public class CosemObjectFactory {
         CosemObject obj = new CosemObject(cosemObjectType, obisIdentifier);
 
         try {
-            logger.debug("Parse values for Cosem Object type: {}", cosemObjectType);
+            logger.trace("Parse values for Cosem Object type: {}", cosemObjectType);
 
             obj.parseCosemValues(cosemStringValues);
 

@@ -17,7 +17,7 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
  * @since 2.0.0
  */
 public class DSMRBindingConstants {
-    // Binding contant
+    // Binding constant
     public static final String BINDING_ID = "dsmr";
 
     // Bridge device thing
@@ -26,5 +26,5 @@ public class DSMRBindingConstants {
     // The other Thing Types are defined in DSMRMeterTypes
 
     // Discovery timeout
-    public final static int DSMR_DISCOVERY_TIMEOUT = 30;
+    public final static int DSMR_DISCOVERY_TIMEOUT = 60;
 }

@@ -16,13 +16,13 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseBridgeHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.types.Command;
+import org.openhab.binding.dsmr.DSMRWatchdogHelper;
 import org.openhab.binding.dsmr.device.DSMRDevice;
 import org.openhab.binding.dsmr.device.DSMRDeviceConfiguration;
 import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DeviceState;
-import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DeviceStateDetail;
+import org.openhab.binding.dsmr.discovery.DSMRMeterDiscoveryService;
+import org.openhab.binding.dsmr.discovery.DSMRMeterDiscoveryListener;
 import org.openhab.binding.dsmr.device.DSMRDeviceStateListener;
-import org.openhab.binding.dsmr.device.discovery.DSMRMeterDiscoveryListener;
-import org.openhab.binding.dsmr.internal.discovery.DSMRDiscoveryService;
 import org.openhab.binding.dsmr.meter.DSMRMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +40,7 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
     private DSMRDevice dsmrDevice = null;
     private DSMRMeterDiscoveryListener discoveryService;
 
-    public DSMRBridgeHandler(Bridge bridge, DSMRDiscoveryService discoveryService) {
+    public DSMRBridgeHandler(Bridge bridge, DSMRMeterDiscoveryService discoveryService) {
         super(bridge);
 
         this.discoveryService = discoveryService;
@@ -54,14 +54,9 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
     @Override
     public void initialize() {
         Configuration config = getThing().getConfiguration();
-        logger.debug("Using configuration:{}", config);
         DSMRDeviceConfiguration deviceConfig = config.as(DSMRDeviceConfiguration.class);
 
-        for (String key : config.keySet()) {
-            logger.debug("Available key: {}", key);
-        }
-
-        logger.debug("Using configuration {} from Thing configuration {}", deviceConfig, config);
+        logger.debug("Using configuration {}", deviceConfig);
         if (deviceConfig == null || deviceConfig.serialPort == null || deviceConfig.serialPort.length() == 0) {
             logger.warn("portName is not configured, not starting device");
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_PENDING, "Serial Port name is not set");
@@ -69,35 +64,38 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
             logger.debug("Starting DSMR device");
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, "Starting bridge");
 
+            DSMRWatchdogHelper.getInstance().start();
             dsmrDevice = new DSMRDevice(deviceConfig, this, discoveryService);
-            dsmrDevice.startUpDevice();
+            dsmrDevice.startDevice();
         }
     }
 
     @Override
     public void dispose() {
         if (dsmrDevice != null) {
-            dsmrDevice.shutdownDevice();
+            dsmrDevice.stopDevice();
             dsmrDevice = null;
         }
+        DSMRWatchdogHelper.getInstance().stop();
     }
 
     @Override
     public void handleRemoval() {
         if (dsmrDevice != null) {
-            dsmrDevice.shutdownDevice();
+            dsmrDevice.stopDevice();
             dsmrDevice = null;
         }
+        DSMRWatchdogHelper.getInstance().stop();
         updateStatus(ThingStatus.REMOVED);
     }
 
     @Override
-    public void stateUpdated(DeviceState oldState, DeviceState newState, DeviceStateDetail stateDetail) {
+    public void stateUpdated(DeviceState oldState, DeviceState newState, String stateDetail) {
         // No implementation
     }
 
     @Override
-    public void stateChanged(DeviceState oldState, DeviceState newState, DeviceStateDetail stateDetail) {
+    public void stateChanged(DeviceState oldState, DeviceState newState, String stateDetail) {
         /*
          * Only if the Thing is initialized the State may be updated (otherwise an IllegalStateException is thrown)
          * See also BaseThingHandler.updateStatus
@@ -106,22 +104,25 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
             logger.debug("Notifying Thing handler of change from {} to {}", oldState, newState);
             switch (newState) {
                 case INITIALIZING:
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail.stateDetails);
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail);
                     break;
                 case OFFLINE:
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, stateDetail.stateDetails);
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, stateDetail);
                     break;
                 case ONLINE:
-                    updateStatus(ThingStatus.ONLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail.stateDetails);
+                    updateStatus(ThingStatus.ONLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail);
                     break;
                 case SHUTDOWN:
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, stateDetail.stateDetails);
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, stateDetail);
                     break;
                 case STARTING:
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail.stateDetails);
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail);
+                    break;
+                case SWITCH_PORT_SPEED:
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, stateDetail);
                     break;
                 case CONFIGURATION_PROBLEM:
-                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, stateDetail.stateDetails);
+                    updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, stateDetail);
                 default:
                     logger.warn("Received unknown state {}", newState);
                     updateStatus(ThingStatus.UNKNOWN);

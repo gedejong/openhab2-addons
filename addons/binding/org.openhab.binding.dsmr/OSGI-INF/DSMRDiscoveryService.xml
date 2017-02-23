@@ -8,12 +8,12 @@
     http://www.eclipse.org/legal/epl-v10.html
 
 -->
-<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" immediate="true" name="org.openhab.binding.dsmr.internal.DSMRHandlerFactory">
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" immediate="true" name="org.openhab.binding.dsmr.discovery.DSMRBridgeDiscoveryService">
 
-   <implementation class="org.openhab.binding.dsmr.internal.DSMRHandlerFactory"/>
+   <implementation class="org.openhab.binding.dsmr.discovery.DSMRBridgeDiscoveryService"/>
 
    <service>
-      <provide interface="org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory"/>
+      <provide interface="org.eclipse.smarthome.config.discovery.DiscoveryService"/>
    </service>
 
 </scr:component>

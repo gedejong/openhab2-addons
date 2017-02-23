@@ -1,11 +1,9 @@
 package org.openhab.binding.dsmr.handler;
 
-import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.ScheduledFuture;
 
 import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -15,12 +13,15 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.State;
+import org.openhab.binding.dsmr.DSMRWatchdogHelper;
+import org.openhab.binding.dsmr.DSMRWatchdogListener;
 import org.openhab.binding.dsmr.device.cosem.CosemDate;
 import org.openhab.binding.dsmr.device.cosem.CosemInteger;
 import org.openhab.binding.dsmr.device.cosem.CosemObject;
 import org.openhab.binding.dsmr.device.cosem.CosemString;
 import org.openhab.binding.dsmr.device.cosem.CosemValue;
 import org.openhab.binding.dsmr.meter.DSMRMeter;
+import org.openhab.binding.dsmr.meter.DSMRMeterConfiguration;
 import org.openhab.binding.dsmr.meter.DSMRMeterConstants;
 import org.openhab.binding.dsmr.meter.DSMRMeterDescriptor;
 import org.openhab.binding.dsmr.meter.DSMRMeterListener;
@@ -28,16 +29,14 @@ import org.openhab.binding.dsmr.meter.DSMRMeterType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class MeterHandler extends BaseThingHandler implements DSMRMeterListener {
+public class MeterHandler extends BaseThingHandler implements DSMRMeterListener, DSMRWatchdogListener {
     public static final Logger logger = LoggerFactory.getLogger(MeterHandler.class);
-
-    private static final String KEY_CHANNEL = "channel";
 
     private static final DateFormat FAILURE_FORMAT = new SimpleDateFormat("d MMM yyyy HH:mm:ss");
 
     private DSMRMeter meter = null;
     private long lastValuesReceivedTs = 0;
-    private Timer valueReceivedTimer;
+    private ScheduledFuture<?> meterWatchdog;
 
     public MeterHandler(Thing thing) {
         super(thing);
@@ -51,66 +50,61 @@ public class MeterHandler extends BaseThingHandler implements DSMRMeterListener 
     @Override
     public void initialize() {
         logger.debug("Initialize MeterHandler for Thing {}", getThing().getUID());
-        Configuration config = getThing().getConfiguration();
 
+        Configuration config = getThing().getConfiguration();
+        DSMRMeterConfiguration meterConfig = null;
         DSMRMeterDescriptor meterDescriptor = null;
-        if (config.containsKey(KEY_CHANNEL)) {
+
+        if (config != null) {
+            meterConfig = config.as(DSMRMeterConfiguration.class);
+        } else {
+            logger.info("{} does not have a configuration", getThing());
+        }
+
+        if (meterConfig != null) {
             DSMRMeterType meterType = null;
-            Integer channel = null;
+
             try {
                 meterType = DSMRMeterType.valueOf(getThing().getThingTypeUID().getId().toUpperCase());
             } catch (Exception exception) {
                 logger.error("Invalid meterType", exception);
             }
-            try {
-                channel = ((BigDecimal) config.get(KEY_CHANNEL)).intValue();
-            } catch (Exception exception) {
-                logger.error("Invalid channel in configuration", exception);
-            }
 
-            if (meterType != null && channel != null) {
-                meterDescriptor = new DSMRMeterDescriptor(meterType, channel);
+            if (meterType != null) {
+                meterDescriptor = new DSMRMeterDescriptor(meterType, meterConfig.channel);
             }
+        } else {
+            logger.warn("Invalid meter configuration for {}", getThing());
         }
         if (meterDescriptor != null) {
             meter = new DSMRMeter(meterDescriptor, this);
 
-            // Initialize timeout timer
-            valueReceivedTimer = new Timer(meter.toString(), true);
-            valueReceivedTimer.scheduleAtFixedRate(new TimerTask() {
-
-                @Override
-                public void run() {
-                    if (System.currentTimeMillis()
-                            - lastValuesReceivedTs > DSMRMeterConstants.METER_VALUES_RECEIVED_TIMEOUT) {
-                        if (!getThing().getStatus().equals(ThingStatus.OFFLINE)) {
-                            updateStatus(ThingStatus.OFFLINE);
-                        }
-                    }
-                }
-
-            }, DSMRMeterConstants.METER_VALUES_TIMER_PERIOD, DSMRMeterConstants.METER_VALUES_TIMER_PERIOD);
+            // Initialize meter watchdog
+            meterWatchdog = DSMRWatchdogHelper.getInstance().getDSMRWatchdog(this,
+                    DSMRMeterConstants.METER_VALUES_RECEIVED_TIMEOUT);
 
             updateStatus(ThingStatus.OFFLINE);
         } else {
-            logger.error("Invalid configuration for this thing. Delete Thing if the problem persists.");
+            logger.error("{} could not be initialized. Delete this Thing if the problem persists.", getThing());
             updateStatus(ThingStatus.UNKNOWN, ThingStatusDetail.CONFIGURATION_ERROR,
-                    "Invalid configuration for this thing. Delete Thing if the problem persists.");
+                    "This could not be initialized. Delete Thing if the problem persists.");
         }
     }
 
     @Override
     public void dispose() {
-        if (valueReceivedTimer != null) {
-            valueReceivedTimer.cancel();
+        if (meterWatchdog != null) {
+            meterWatchdog.cancel(false);
+            meterWatchdog = null;
         }
     }
 
     @Override
     public void handleRemoval() {
         // Stop the timeout timer
-        if (valueReceivedTimer != null) {
-            valueReceivedTimer.cancel();
+        if (meterWatchdog != null) {
+            meterWatchdog.cancel(false);
+            meterWatchdog = null;
         }
         updateStatus(ThingStatus.REMOVED);
     }
@@ -195,5 +189,18 @@ public class MeterHandler extends BaseThingHandler implements DSMRMeterListener 
      */
     public DSMRMeter getDSMRMeter() {
         return meter;
+    }
+
+    /**
+     * Checks if in the past METER_VALUES_RECEIVED_TIMEOUT (in seconds) values are received
+     * if not put the thing offline
+     */
+    @Override
+    public void alive() {
+        if (System.currentTimeMillis() - lastValuesReceivedTs > DSMRMeterConstants.METER_VALUES_RECEIVED_TIMEOUT) {
+            if (!getThing().getStatus().equals(ThingStatus.OFFLINE)) {
+                updateStatus(ThingStatus.OFFLINE);
+            }
+        }
     }
 }

@@ -23,9 +23,15 @@ public interface P1TelegramListener {
      * @since 2.0.0
      */
     public enum TelegramState {
-        OK,
-        CRC_ERROR,
-        DATA_CORRUPTION
+        OK("P1 telegram received OK"),
+        CRC_ERROR("CRC checksum failed for received P1 telegram"),
+        DATA_CORRUPTION("Received P1 telegram is corrupted");
+
+        public final String stateDetails;
+
+        TelegramState(String stateDetails) {
+            this.stateDetails = stateDetails;
+        }
     }
 
     /**

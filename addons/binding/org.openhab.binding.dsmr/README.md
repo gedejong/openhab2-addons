@@ -23,7 +23,7 @@ This option is targeted for embedded platforms with limited CPU power.
 **Note:** *With lenientMode enabled receiving data is not guaranteed to be steady.*
 
 #### Installation
-PaperUI: Add the thing manually
+PaperUI: Scan for devices on the DSMR binding or add the DSMR Bridge thing manually (you need to set the serialPort manual in this case)
 
 Manual configuration:
 The following configuration need to be added to a thing-configuration file. E.g. `things/dsmr.things`

@@ -16,9 +16,9 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.openhab.binding.dsmr.DSMRBindingConstants;
+import org.openhab.binding.dsmr.discovery.DSMRMeterDiscoveryService;
 import org.openhab.binding.dsmr.handler.DSMRBridgeHandler;
 import org.openhab.binding.dsmr.handler.MeterHandler;
-import org.openhab.binding.dsmr.internal.discovery.DSMRDiscoveryService;
 import org.openhab.binding.dsmr.meter.DSMRMeterType;
 import org.osgi.framework.ServiceRegistration;
 import org.slf4j.Logger;
@@ -49,7 +49,6 @@ public class DSMRHandlerFactory extends BaseThingHandlerFactory {
      */
     @Override
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {
-
         if (thingTypeUID.equals(DSMRBindingConstants.THING_TYPE_DSMR_BRIDGE)) {
             logger.debug("DSMR Bridge Thing {} supported", thingTypeUID);
             return true;
@@ -79,12 +78,11 @@ public class DSMRHandlerFactory extends BaseThingHandlerFactory {
      */
     @Override
     protected ThingHandler createHandler(Thing thing) {
-
         ThingTypeUID thingTypeUID = thing.getThingTypeUID();
         logger.debug("Searching for thingTypeUID {}", thingTypeUID);
         if (thingTypeUID.equals(DSMRBindingConstants.THING_TYPE_DSMR_BRIDGE)) {
             Bridge dsmrBridge = (Bridge) thing;
-            DSMRDiscoveryService discoveryService = new DSMRDiscoveryService(dsmrBridge.getUID());
+            DSMRMeterDiscoveryService discoveryService = new DSMRMeterDiscoveryService(dsmrBridge.getUID());
             DSMRBridgeHandler bridgeHandler = new DSMRBridgeHandler((Bridge) thing, discoveryService);
 
             serviceReg = bundleContext.registerService(DiscoveryService.class.getName(), discoveryService,

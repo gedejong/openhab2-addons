@@ -124,7 +124,7 @@ public class CosemObject {
      *             if parsing fails
      */
     public void parseCosemValues(String cosemValueString) throws ParseException {
-        logger.debug("Parsing CosemValue string {}", cosemValueString);
+        logger.trace("Parsing CosemValue string {}", cosemValueString);
 
         Matcher cosemValueMatcher = cosemValuesPattern.matcher(cosemValueString);
 
@@ -136,7 +136,7 @@ public class CosemObject {
         cosemValueMatcher.reset();
 
         if (type.supportsNrOfValues(nrOfCosemValues)) {
-            logger.debug("Received items: {} is supported", nrOfCosemValues);
+            logger.trace("Received items: {} is supported", nrOfCosemValues);
 
             int cosemValueItr = 0;
             while (cosemValueMatcher.find()) {

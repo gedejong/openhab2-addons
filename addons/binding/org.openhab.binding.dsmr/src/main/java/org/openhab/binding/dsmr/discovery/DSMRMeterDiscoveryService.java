@@ -1,4 +1,4 @@
-package org.openhab.binding.dsmr.internal.discovery;
+package org.openhab.binding.dsmr.discovery;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -9,8 +9,6 @@ import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.openhab.binding.dsmr.DSMRBindingConstants;
-import org.openhab.binding.dsmr.device.DSMRDevice;
-import org.openhab.binding.dsmr.device.discovery.DSMRMeterDiscoveryListener;
 import org.openhab.binding.dsmr.meter.DSMRMeterConstants;
 import org.openhab.binding.dsmr.meter.DSMRMeterDescriptor;
 import org.openhab.binding.dsmr.meter.DSMRMeterType;
@@ -23,9 +21,9 @@ import org.slf4j.LoggerFactory;
  * @author M. Volaart
  * @since 2.0.0
  */
-public class DSMRDiscoveryService extends AbstractDiscoveryService implements DSMRMeterDiscoveryListener {
+public class DSMRMeterDiscoveryService extends AbstractDiscoveryService implements DSMRMeterDiscoveryListener {
     // Logger
-    private final Logger logger = LoggerFactory.getLogger(DSMRDiscoveryService.class);
+    private final Logger logger = LoggerFactory.getLogger(DSMRMeterDiscoveryService.class);
 
     // The Bridge ThingUID
     private ThingUID dsmrBridgeUID = null;
@@ -35,27 +33,17 @@ public class DSMRDiscoveryService extends AbstractDiscoveryService implements DS
      *
      * @param dsmrBridgeUID ThingUID for the DSMR Bridges
      */
-    public DSMRDiscoveryService(ThingUID dsmrBridgeUID) {
+    public DSMRMeterDiscoveryService(ThingUID dsmrBridgeUID) {
         super(DSMRMeterType.METER_THING_TYPES, DSMRBindingConstants.DSMR_DISCOVERY_TIMEOUT, false);
         this.dsmrBridgeUID = dsmrBridgeUID;
     }
 
     /**
-     * Starts a new discovery scan.
-     *
-     * Since {@link DSMRDevice} will always notify when a new meter is found
-     * nothing specific has to be done except just wait till new data is processed.
-     *
-     * Since new data is available every 10 seconds (< DSMR V5) or every second (DSMRV5)
-     * will we just wait DSMR_DISCOVERY_TIMEOUT ({@link DSMRBindingConstants}
+     * Manual scanning is not supported for meters. The bridge will handle this automatically
      */
     @Override
     protected void startScan() {
-        /*
-         * There is no specific action needed to do a discovery.
-         * DSMRDevice will always notify new discovered devices
-         */
-        logger.debug("Started Discovery Scan (no specific action is needed for this binding)");
+        // Manual scanning is not supported
     }
 
     /**
@@ -66,7 +54,7 @@ public class DSMRDiscoveryService extends AbstractDiscoveryService implements DS
      *
      * At this moment there are no reasons why a new meter will not be accepted.
      *
-     * Therefor this callback will always return true.
+     * Therefore this callback will always return true.
      *
      * @param meterDescriptor the descriptor of the new detected meter
      * @return true (meter is always accepted)
