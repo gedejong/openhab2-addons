@@ -1,11 +1,15 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
+ * Copyright (c) 2010-2017 by the respective copyright holders.
+ *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.dsmr.handler;
+
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.thing.Bridge;
@@ -16,14 +20,14 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseBridgeHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.types.Command;
-import org.openhab.binding.dsmr.DSMRWatchdogHelper;
-import org.openhab.binding.dsmr.device.DSMRDevice;
-import org.openhab.binding.dsmr.device.DSMRDeviceConfiguration;
-import org.openhab.binding.dsmr.device.DSMRDeviceConstants.DeviceState;
-import org.openhab.binding.dsmr.discovery.DSMRMeterDiscoveryService;
-import org.openhab.binding.dsmr.discovery.DSMRMeterDiscoveryListener;
-import org.openhab.binding.dsmr.device.DSMRDeviceStateListener;
-import org.openhab.binding.dsmr.meter.DSMRMeter;
+import org.openhab.binding.dsmr.internal.device.DSMRDevice;
+import org.openhab.binding.dsmr.internal.device.DSMRDeviceConfiguration;
+import org.openhab.binding.dsmr.internal.device.DSMRDeviceConstants;
+import org.openhab.binding.dsmr.internal.device.DSMRDeviceStateListener;
+import org.openhab.binding.dsmr.internal.device.DSMRDeviceConstants.DeviceState;
+import org.openhab.binding.dsmr.internal.discovery.DSMRMeterDiscoveryListener;
+import org.openhab.binding.dsmr.internal.discovery.DSMRMeterDiscoveryService;
+import org.openhab.binding.dsmr.internal.meter.DSMRMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,26 +35,50 @@ import org.slf4j.LoggerFactory;
  * The {@link DSMRBridgeHandler} is responsible for handling commands, which are
  * sent to one of the channels.
  *
- * @author Marcel Volaart - Initial contribution
+ * @author M. Volaart - Initial contribution
+ * @since 2.1.0
  */
 public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceStateListener {
+    // logger
+    private final Logger logger = LoggerFactory.getLogger(DSMRBridgeHandler.class);
 
-    private Logger logger = LoggerFactory.getLogger(DSMRBridgeHandler.class);
-
+    // DSMRDevice that belongs to this DSMRBridgeHandler
     private DSMRDevice dsmrDevice = null;
+
+    // The Discovery service for this bridge
     private DSMRMeterDiscoveryListener discoveryService;
 
+    // Watchdog
+    private ScheduledFuture<?> watchdog;
+
+    /**
+     * Constructor
+     *
+     * @param bridge the Bridge ThingType
+     * @param discoveryService the DSMRMeterDiscoveryService to use for new DSMR meters
+     */
     public DSMRBridgeHandler(Bridge bridge, DSMRMeterDiscoveryService discoveryService) {
         super(bridge);
 
         this.discoveryService = discoveryService;
     }
 
+    /**
+     * The DSMRBridgeHandler does not support handling commands
+     *
+     * @param channelUID
+     * @param command
+     */
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         // DSMRBridgeHandler does not support commands
     }
 
+    /**
+     * Initializes this DSMRBridgeHandler
+     *
+     * This method will get the corresponding configuration and initialize and start the corresponding DSMRDevice
+     */
     @Override
     public void initialize() {
         Configuration config = getThing().getConfiguration();
@@ -64,28 +92,46 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
             logger.debug("Starting DSMR device");
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE, "Starting bridge");
 
-            DSMRWatchdogHelper.getInstance().start();
             dsmrDevice = new DSMRDevice(deviceConfig, this, discoveryService);
             dsmrDevice.startDevice();
+
+            // Initialize meter watchdog
+            watchdog = scheduler.scheduleWithFixedDelay(new Runnable() {
+                @Override
+                public void run() {
+                    dsmrDevice.alive();
+                }
+            }, DSMRDeviceConstants.RECOVERY_TIMEOUT, DSMRDeviceConstants.RECOVERY_TIMEOUT, TimeUnit.MILLISECONDS);
+
         }
     }
 
+    /**
+     * On dispose the DSMR device is removed
+     */
     @Override
     public void dispose() {
+        if (watchdog != null && !watchdog.isCancelled()) {
+            watchdog.cancel(true);
+            watchdog = null;
+        }
         if (dsmrDevice != null) {
             dsmrDevice.stopDevice();
             dsmrDevice = null;
         }
-        DSMRWatchdogHelper.getInstance().stop();
+
     }
 
     @Override
     public void handleRemoval() {
+        if (watchdog != null && !watchdog.isCancelled()) {
+            watchdog.cancel(true);
+            watchdog = null;
+        }
         if (dsmrDevice != null) {
             dsmrDevice.stopDevice();
             dsmrDevice = null;
         }
-        DSMRWatchdogHelper.getInstance().stop();
         updateStatus(ThingStatus.REMOVED);
     }
 
@@ -134,8 +180,8 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
 
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
-        if (childHandler instanceof MeterHandler) {
-            MeterHandler mh = (MeterHandler) childHandler;
+        if (childHandler instanceof DSMRMeterHandler) {
+            DSMRMeterHandler mh = (DSMRMeterHandler) childHandler;
 
             DSMRMeter meter = mh.getDSMRMeter();
 
@@ -150,8 +196,8 @@ public class DSMRBridgeHandler extends BaseBridgeHandler implements DSMRDeviceSt
 
     @Override
     public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
-        if (childHandler instanceof MeterHandler) {
-            MeterHandler mh = (MeterHandler) childHandler;
+        if (childHandler instanceof DSMRMeterHandler) {
+            DSMRMeterHandler mh = (DSMRMeterHandler) childHandler;
 
             DSMRMeter meter = mh.getDSMRMeter();
 
