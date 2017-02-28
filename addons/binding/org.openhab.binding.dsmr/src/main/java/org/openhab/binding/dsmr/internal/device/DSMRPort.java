@@ -391,7 +391,8 @@ public class DSMRPort implements SerialPortEventListener {
                     if (!portStatus.bi) {
                         logger.debug("Serial Communication is broken");
                         portStatus.bi = true;
-                        dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.LINE_BROKEN);
+                        // patched, perhaps we should start a timer here..
+                        // dsmrPortListener.handleDSMRPortEvent(DSMRPortEvent.LINE_BROKEN);
                     } // Don't notify again
                 } else {
                     portStatus.bi = false;
